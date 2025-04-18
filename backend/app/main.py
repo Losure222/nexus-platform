@@ -3,7 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 import csv
 from pathlib import Path
 from typing import List
-
 from app.ebay.search import search_ebay
 
 app = FastAPI()
@@ -11,7 +10,7 @@ app = FastAPI()
 # Enable CORS for frontend access during development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # Make sure this includes your frontend's origin (e.g., Vercel's URL for production)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -26,7 +25,7 @@ def load_all_parts() -> List[dict]:
             reader = csv.DictReader(f)
             for row in reader:
                 row['vendor_file'] = file.name
-                row['type'] = 'vendor'  # ✅ Add type to identify as Trusted Supplier
+                row['type'] = 'vendor'  # Add type to identify as Trusted Supplier
 
                 # Normalize location to support filter toggle
                 raw_location = row.get('location', '').lower()
@@ -39,8 +38,9 @@ def load_all_parts() -> List[dict]:
                 else:
                     row['country'] = 'n/a'
 
-                # Ensure quantity is passed through
+                # Ensure quantity is passed through (strip whitespace)
                 row['quantity'] = row.get('quantity') or row.get('Quantity') or ''
+                row['quantity'] = row['quantity'].strip()
 
                 parts.append(row)
     return parts
@@ -58,6 +58,8 @@ def search_parts(query: str = Query(..., min_length=2)):
 
     print(f"\n🔍 SEARCH: '{query}' → Normalized: '{normalized_query}'")
     print(f"📦 CSV matches found: {len(csv_matches)}")
+    if csv_matches:
+        print("🔎 Sample match:", csv_matches[0])  # 🔍 DEBUG LINE
 
     # Attempt eBay search
     try:

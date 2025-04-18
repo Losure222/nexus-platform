@@ -30,7 +30,7 @@ function App() {
     if (!searchTerm) return;
 
     try {
-      const res = await fetch(`http://127.0.0.1:8000/parts?query=${searchTerm}`);
+      const res = await fetch(`https://nexus-backend-6xfb.onrender.com/parts?query=${searchTerm}`);
       const data = await res.json();
 
       setCsvResults(data.csv_results || []);

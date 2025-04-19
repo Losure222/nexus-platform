@@ -36,19 +36,13 @@ def search_ebay(query, limit=20):
         # Normalize search and add "type": "ebay" to each match
         query_normalized = query.replace("-", "").lower()
 
+        # Include all eBay results, no filtering
         filtered = []
         for item in items:
             title_normalized = item.get("title", "").replace("-", "").lower()
             if query_normalized in title_normalized:
-                # Check if the country data is present before filtering
-                seller_country = item.get('seller', {}).get('country', '').lower() if item.get('seller') else ""
-                item_country = item.get('itemLocation', {}).get('country', '').lower() if item.get('itemLocation') else ""
-
-                # Debugging: print seller and item country
-                print(f"Seller Country: {seller_country}, Item Country: {item_country}")
-
-                # Only add item if country data exists and isn't conflicting with China
-                
+                item["type"] = "ebay"  # Add supplier type tag
+                filtered.append(item)
 
         # Debug print
         print(f"\n🔍 eBay search for '{query}' → {len(filtered)} matches")

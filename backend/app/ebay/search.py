@@ -28,6 +28,11 @@ def search_ebay(query, limit=20):
         data = response.json()
         items = data.get("itemSummaries", [])
 
+        # Log the raw results to check if eBay returns anything
+        print(f"\nRaw eBay results for '{query}':")
+        for item in items:
+            print(f"Title: {item.get('title')}, Seller Country: {item.get('seller', {}).get('country')}")
+
         # Normalize search and add "type": "ebay" to each match
         query_normalized = query.replace("-", "").lower()
 
@@ -43,12 +48,7 @@ def search_ebay(query, limit=20):
                 print(f"Seller Country: {seller_country}, Item Country: {item_country}")
 
                 # Only add item if country data exists and isn't conflicting with China
-                if seller_country and item_country and not (
-                    "china" in seller_country and item_country != 'china') and not (
-                    "china" in item_country and seller_country != 'china'):
-                    
-                    item["type"] = "ebay"  # Add supplier type tag
-                    filtered.append(item)
+                
 
         # Debug print
         print(f"\n🔍 eBay search for '{query}' → {len(filtered)} matches")

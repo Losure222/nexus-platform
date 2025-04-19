@@ -69,8 +69,14 @@ def search_parts(query: str = Query(..., min_length=2)):
         # Filter out items where the seller's registered country is China or where shipping location is different than the registered country
         ebay_items = [
             item for item in ebay_items
-            if not ("china" in item['seller']['country'].lower() and item['itemLocation']['country'].lower() != 'china')  # Remove items from sellers registered in China, but shipping from another country
-            and not ("china" in item['itemLocation']['country'].lower() and item['seller']['country'].lower() != 'china')  # Remove items where itemLocation is China, but seller is from a different country
+            if not (  # Exclude sellers based in China but shipping from another country
+                "china" in item['seller']['country'].lower() 
+                and item['itemLocation']['country'].lower() != 'china'
+            ) 
+            and not (  # Exclude items where the item is from China but seller's registered country is different
+                "china" in item['itemLocation']['country'].lower() 
+                and item['seller']['country'].lower() != 'china'
+            )
         ]
 
         print(f"🛒 eBay results found: {len(ebay_items)}")

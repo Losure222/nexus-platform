@@ -39,11 +39,14 @@ def search_ebay(query, limit=20):
                 seller_country = item.get('seller', {}).get('country', '').lower() if item.get('seller') else ""
                 item_country = item.get('itemLocation', {}).get('country', '').lower() if item.get('itemLocation') else ""
 
+                # Debugging: print seller and item country
+                print(f"Seller Country: {seller_country}, Item Country: {item_country}")
+
                 # Only add item if country data exists and isn't conflicting with China
                 if seller_country and item_country and not (
                     "china" in seller_country and item_country != 'china') and not (
                     "china" in item_country and seller_country != 'china'):
-
+                    
                     item["type"] = "ebay"  # Add supplier type tag
                     filtered.append(item)
 

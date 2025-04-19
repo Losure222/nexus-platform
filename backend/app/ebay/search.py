@@ -15,8 +15,6 @@ def search_ebay(query, limit=20):
     params = {
         'q': normalized_keywords,
         'limit': limit,
-        # Optional: add eBay category for Industrial Automation (categoryId = 55816)
-        # 'category_ids': '55816',
         'filter': 'buyingOptions:{FIXED_PRICE}'
     }
 
@@ -37,9 +35,9 @@ def search_ebay(query, limit=20):
         for item in items:
             title_normalized = item.get("title", "").replace("-", "").lower()
             if query_normalized in title_normalized:
-                # Add country validation for seller and item location
-                seller_country = item.get('seller', {}).get('country', '').lower()
-                item_country = item.get('itemLocation', {}).get('country', '').lower()
+                # Check if the country data is present before filtering
+                seller_country = item.get('seller', {}).get('country', '').lower() if item.get('seller') else ""
+                item_country = item.get('itemLocation', {}).get('country', '').lower() if item.get('itemLocation') else ""
 
                 # Only add item if country data exists and isn't conflicting with China
                 if seller_country and item_country and not (

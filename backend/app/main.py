@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 import csv
 from pathlib import Path
 from typing import List
@@ -69,12 +70,12 @@ def search_parts(query: str = Query(..., min_length=2)):
         # Filter out items where the seller's registered country is China or where shipping location is different than the registered country
         ebay_items = [
             item for item in ebay_items
-            if not (  # Exclude sellers based in China but shipping from another country
-                "china" in item['seller']['country'].lower() 
+            if not (
+                "china" in item['seller']['country'].lower()
                 and item['itemLocation']['country'].lower() != 'china'
-            ) 
-            and not (  # Exclude items where the item is from China but seller's registered country is different
-                "china" in item['itemLocation']['country'].lower() 
+            )
+            and not (
+                "china" in item['itemLocation']['country'].lower()
                 and item['seller']['country'].lower() != 'china'
             )
         ]
@@ -97,3 +98,25 @@ def get_by_manufacturer(name: str):
         if name.lower() in p['manufacturer'].lower()
     ]
     return {"results": matches}
+
+# ✅ NEW: Return all unique part_number + manufacturer combinations
+@app.get("/all-parts")
+def get_all_parts():
+    all_parts = load_all_parts()
+
+    simplified = []
+    seen = set()
+    for p in all_parts:
+        part_number = p.get("part_number", "").strip()
+        manufacturer = p.get("manufacturer", "").strip()
+        if part_number and manufacturer:
+            key = (manufacturer.lower(), part_number.lower())
+            if key not in seen:
+                seen.add(key)
+                simplified.append({
+                    "manufacturer": manufacturer,
+                    "part_number": part_number
+                })
+
+    return JSONResponse(content=simplified)
+

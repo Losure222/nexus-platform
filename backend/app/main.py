@@ -20,7 +20,6 @@ app.add_middleware(
 DATA_DIR = Path(__file__).parent.parent / "data/vendors"
 
 brand_aliases = {
-    "indramat": "bosch rexroth",
     "rexroth": "bosch rexroth",
     # Add more aliases as needed
 }

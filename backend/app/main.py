@@ -11,7 +11,7 @@ app = FastAPI()
 # Enable CORS for frontend access during development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Make sure this includes your frontend's origin (e.g., Vercel's URL for production)
+    allow_origins=["*"],  # You can lock this down to just https://stanloautomation.com if you prefer
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -26,9 +26,9 @@ def load_all_parts() -> List[dict]:
             reader = csv.DictReader(f)
             for row in reader:
                 row['vendor_file'] = file.name
-                row['type'] = 'vendor'  # Add type to identify as Trusted Supplier
+                row['type'] = 'vendor'
 
-                # Normalize location to support filter toggle
+                # Normalize location
                 raw_location = row.get('location', '').lower()
                 if any(country in raw_location for country in ['de', 'fr', 'nl', 'pl', 'es', 'eu', 'europe']):
                     row['country'] = 'europe'
@@ -39,11 +39,9 @@ def load_all_parts() -> List[dict]:
                 else:
                     row['country'] = 'n/a'
 
-                # Ensure quantity is passed through (strip whitespace)
                 row['quantity'] = row.get('quantity') or row.get('Quantity') or ''
                 row['quantity'] = row['quantity'].strip()
 
-                # Normalize manufacturer casing and spacing
                 if 'manufacturer' in row:
                     row['manufacturer'] = row['manufacturer'].strip().lower()
 
@@ -53,9 +51,8 @@ def load_all_parts() -> List[dict]:
 @app.get("/parts")
 def search_parts(query: str = Query(..., min_length=2)):
     normalized_query = query.replace("-", "").lower()
-
-    # Load and filter vendor CSV matches
     all_parts = load_all_parts()
+
     csv_matches = [
         p for p in all_parts
         if normalized_query in p['part_number'].replace("-", "").lower()
@@ -64,14 +61,12 @@ def search_parts(query: str = Query(..., min_length=2)):
     print(f"\n🔍 SEARCH: '{query}' → Normalized: '{normalized_query}'")
     print(f"📦 CSV matches found: {len(csv_matches)}")
     if csv_matches:
-        print("🔎 Sample match:", csv_matches[0])  # 🔍 DEBUG LINE
+        print("🔎 Sample match:", csv_matches[0])
 
-    # Attempt eBay search
     try:
         ebay_data = search_ebay(query)
         ebay_items = ebay_data.get("itemSummaries", [])
 
-        # Filter out items where the seller's registered country is China or where shipping location is different than the registered country
         ebay_items = [
             item for item in ebay_items
             if not (
@@ -103,7 +98,6 @@ def get_by_manufacturer(name: str):
     ]
     return {"results": matches}
 
-# ✅ NEW: Return all unique part_number + manufacturer combinations
 @app.get("/all-parts")
 def get_all_parts():
     all_parts = load_all_parts()
@@ -123,3 +117,17 @@ def get_all_parts():
                 })
 
     return JSONResponse(content=simplified)
+
+# ✅ NEW: return list of unique manufacturers
+@app.get("/manufacturers")
+def get_all_manufacturers():
+    all_parts = load_all_parts()
+    manufacturers = set()
+
+    for part in all_parts:
+        mfg = part.get("manufacturer", "").strip().lower()
+        if mfg:
+            manufacturers.add(mfg)
+
+    sorted_list = sorted(list(manufacturers))
+    return JSONResponse(content=sorted_list)

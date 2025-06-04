@@ -42,7 +42,10 @@ def load_all_parts() -> List[dict]:
                 # Ensure quantity is passed through (strip whitespace)
                 row['quantity'] = row.get('quantity') or row.get('Quantity') or ''
                 row['quantity'] = row['quantity'].strip()
-
+                # Normalize manufacturer casing and spacing
+                if 'manufacturer' in row:
+                row['manufacturer'] = row['manufacturer'].strip().title()
+                    
                 parts.append(row)
     return parts
 

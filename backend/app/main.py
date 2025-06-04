@@ -11,13 +11,22 @@ app = FastAPI()
 # Enable CORS for frontend access during development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # You can lock this down to just https://stanloautomation.com if you prefer
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 DATA_DIR = Path(__file__).parent.parent / "data/vendors"
+
+brand_aliases = {
+    "indramat": "bosch rexroth",
+    "rexroth": "bosch rexroth",
+    # Add more aliases as needed
+}
+
+def normalize_manufacturer(name):
+    return brand_aliases.get(name.lower(), name.lower())
 
 def load_all_parts() -> List[dict]:
     parts = []
@@ -28,7 +37,6 @@ def load_all_parts() -> List[dict]:
                 row['vendor_file'] = file.name
                 row['type'] = 'vendor'
 
-                # Normalize location
                 raw_location = row.get('location', '').lower()
                 if any(country in raw_location for country in ['de', 'fr', 'nl', 'pl', 'es', 'eu', 'europe']):
                     row['country'] = 'europe'
@@ -43,7 +51,7 @@ def load_all_parts() -> List[dict]:
                 row['quantity'] = row['quantity'].strip()
 
                 if 'manufacturer' in row:
-                    row['manufacturer'] = row['manufacturer'].strip().lower()
+                    row['manufacturer'] = normalize_manufacturer(row['manufacturer'].strip())
 
                 parts.append(row)
     return parts
@@ -58,15 +66,9 @@ def search_parts(query: str = Query(..., min_length=2)):
         if normalized_query in p['part_number'].replace("-", "").lower()
     ]
 
-    print(f"\n🔍 SEARCH: '{query}' → Normalized: '{normalized_query}'")
-    print(f"📦 CSV matches found: {len(csv_matches)}")
-    if csv_matches:
-        print("🔎 Sample match:", csv_matches[0])
-
     try:
         ebay_data = search_ebay(query)
         ebay_items = ebay_data.get("itemSummaries", [])
-
         ebay_items = [
             item for item in ebay_items
             if not (
@@ -78,10 +80,8 @@ def search_parts(query: str = Query(..., min_length=2)):
                 and item['seller']['country'].lower() != 'china'
             )
         ]
-
-        print(f"🛒 eBay results found: {len(ebay_items)}")
     except Exception as e:
-        print(f"❌ eBay API error: {e}")
+        print(f"eBay API error: {e}")
         ebay_items = []
 
     return {
@@ -92,52 +92,36 @@ def search_parts(query: str = Query(..., min_length=2)):
 @app.get("/manufacturers/{name}")
 def get_by_manufacturer(name: str):
     all_parts = load_all_parts()
-    matches = [
-        p for p in all_parts
-        if name.lower() in p['manufacturer']
-    ]
+    target = normalize_manufacturer(name)
+    matches = [p for p in all_parts if target in p['manufacturer']]
     return {"results": matches}
 
 @app.get("/all-parts")
 def get_all_parts():
     all_parts = load_all_parts()
-
-    simplified = []
     seen = set()
+    simplified = []
     for p in all_parts:
         part_number = p.get("part_number", "").strip()
         manufacturer = p.get("manufacturer", "").strip()
-        if part_number and manufacturer:
-            key = (manufacturer.lower(), part_number.lower())
-            if key not in seen:
-                seen.add(key)
-                simplified.append({
-                    "manufacturer": manufacturer,
-                    "part_number": part_number
-                })
-
+        key = (manufacturer.lower(), part_number.lower())
+        if key not in seen:
+            seen.add(key)
+            simplified.append({"manufacturer": manufacturer, "part_number": part_number})
     return JSONResponse(content=simplified)
 
-# ✅ NEW: return list of unique manufacturers
 @app.get("/manufacturers")
 def get_all_manufacturers():
-    # List of approved brand names (normalized to lowercase)
-    allowed_brands = {
+    allowed = {
         "abb", "allen bradley", "b&r", "beckhoff", "bosch rexroth",
         "balluff", "baumer", "baumüller", "berger lahr", "fanuc",
         "indramat", "mitsubishi", "schneider", "siemens", "eaton",
         "control techniques", "danfoss", "festo", "ge fanuc", "keyence",
         "kuka", "lenze", "leuze", "murrelektronik", "omron", "pepperl & fuchs",
         "phoenix contact", "pilz", "rexroth", "schmersal", "sew eurodrive",
-        "sick", "vipa", "yaskawa",
+        "sick", "vipa", "yaskawa"
     }
 
     all_parts = load_all_parts()
-    found = set()
-
-    for part in all_parts:
-        raw = part.get("manufacturer", "").strip().lower()
-        if raw in allowed_brands:
-            found.add(raw)
-
+    found = {p['manufacturer'] for p in all_parts if p['manufacturer'] in allowed}
     return JSONResponse(content=sorted(list(found)))

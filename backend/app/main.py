@@ -44,7 +44,7 @@ def load_all_parts() -> List[dict]:
                 row['quantity'] = row['quantity'].strip()
                 # Normalize manufacturer casing and spacing
                 if 'manufacturer' in row:
-                row['manufacturer'] = row['manufacturer'].strip().title()
+    row['manufacturer'] = row['manufacturer'].strip().title()
                     
                 parts.append(row)
     return parts

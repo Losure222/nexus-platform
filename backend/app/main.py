@@ -46,7 +46,7 @@ def load_all_parts() -> List[dict]:
         if 'manufacturer' in row:
             row['manufacturer'] = row['manufacturer'].strip().title()
                     
-                parts.append(row)
+        parts.append(row)
     return parts
 
 @app.get("/parts")

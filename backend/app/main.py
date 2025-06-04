@@ -121,13 +121,23 @@ def get_all_parts():
 # ✅ NEW: return list of unique manufacturers
 @app.get("/manufacturers")
 def get_all_manufacturers():
+    # List of approved brand names (normalized to lowercase)
+    allowed_brands = {
+        "abb", "allen bradley", "b&r", "beckhoff", "bosch rexroth",
+        "balluff", "baumer", "baumüller", "berger lahr", "fanuc",
+        "indramat", "mitsubishi", "schneider", "siemens", "eaton",
+        "control techniques", "danfoss", "festo", "ge fanuc", "keyence",
+        "kuka", "lenze", "leuze", "murrelektronik", "omron", "pepperl & fuchs",
+        "phoenix contact", "pilz", "rexroth", "schmersal", "sew eurodrive",
+        "sick", "vipa", "yaskawa",
+    }
+
     all_parts = load_all_parts()
-    manufacturers = set()
+    found = set()
 
     for part in all_parts:
-        mfg = part.get("manufacturer", "").strip().lower()
-        if mfg:
-            manufacturers.add(mfg)
+        raw = part.get("manufacturer", "").strip().lower()
+        if raw in allowed_brands:
+            found.add(raw)
 
-    sorted_list = sorted(list(manufacturers))
-    return JSONResponse(content=sorted_list)
+    return JSONResponse(content=sorted(list(found)))

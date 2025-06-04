@@ -28,7 +28,7 @@ def load_all_parts() -> List[dict]:
                 row['vendor_file'] = file.name
                 row['type'] = 'vendor'  # Add type to identify as Trusted Supplier
 
-                # Normalize location to support filter toggle
+                # Normalize location
                 raw_location = row.get('location', '').lower()
                 if any(country in raw_location for country in ['de', 'fr', 'nl', 'pl', 'es', 'eu', 'europe']):
                     row['country'] = 'europe'
@@ -39,15 +39,27 @@ def load_all_parts() -> List[dict]:
                 else:
                     row['country'] = 'n/a'
 
-                # Ensure quantity is passed through (strip whitespace)
+                # Normalize quantity
                 row['quantity'] = row.get('quantity') or row.get('Quantity') or ''
                 row['quantity'] = row['quantity'].strip()
-                # Normalize manufacturer casing and spacing
-        if 'manufacturer' in row:
-            row['manufacturer'] = row['manufacturer'].strip().title()
-                    
-        parts.append(row)
+
+                # Normalize manufacturer
+                if 'manufacturer' in row:
+                    row['manufacturer'] = row['manufacturer'].strip().title()
+
+                parts.append(row)  # ✅ Append to list
+
     return parts
+
+@app.get("/manufacturers/{name}")
+def get_by_manufacturer(name: str):
+    name_normalized = name.strip().lower()
+    all_parts = load_all_parts()
+    matches = [
+        p for p in all_parts
+        if p.get('manufacturer', '').strip().lower() == name_normalized
+    ]
+    return {"results": matches}
 
 @app.get("/parts")
 def search_parts(query: str = Query(..., min_length=2)):

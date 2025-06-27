@@ -124,3 +124,37 @@ def get_all_manufacturers():
     all_parts = load_all_parts()
     found = {p['manufacturer'] for p in all_parts if p['manufacturer'] in allowed}
     return JSONResponse(content=sorted(list(found)))
+
+import stripe
+from fastapi import HTTPException
+from pydantic import BaseModel
+
+import os
+stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
+
+class PaymentRequest(BaseModel):
+    name: str
+    amount: float  # in USD
+
+@app.post("/create-payment-link")
+def create_payment_link(req: PaymentRequest):
+    try:
+        session = stripe.checkout.Session.create(
+            payment_method_types=['card'],
+            line_items=[{
+                'price_data': {
+                    'currency': 'usd',
+                    'product_data': {
+                        'name': req.name,
+                    },
+                    'unit_amount': int(req.amount * 100),
+                },
+                'quantity': 1,
+            }],
+            mode='payment',
+            success_url='https://stanloautomation.com/success',
+            cancel_url='https://stanloautomation.com/cancel',
+        )
+        return {"url": session.url}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

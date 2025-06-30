@@ -37,23 +37,27 @@ def load_all_parts() -> List[dict]:
                 row['type'] = 'vendor'
 
                 raw_location = row.get('location', '').lower()
-                if any(country in raw_location for country in ['de', 'fr', 'nl', 'pl', 'es', 'eu', 'europe']):
+                if any(c in raw_location for c in ['de', 'fr', 'nl', 'pl', 'es', 'eu', 'europe']):
                     row['country'] = 'europe'
                 elif 'china' in raw_location:
                     row['country'] = 'china'
-                elif any(country in raw_location for country in ['us', 'usa', 'united states']):
+                elif any(c in raw_location for c in ['us', 'usa', 'united states']):
                     row['country'] = 'usa'
                 else:
                     row['country'] = 'n/a'
 
-                row['quantity'] = row.get('quantity') or row.get('Quantity') or ''
-                row['quantity'] = row['quantity'].strip()
+                row['quantity'] = row.get('quantity', '').strip()
 
                 if 'manufacturer' in row:
                     row['manufacturer'] = normalize_manufacturer(row['manufacturer'].strip())
 
                 parts.append(row)
     return parts
+
+def is_chinese_seller(item):
+    seller_country = item.get("seller", {}).get("country", "").lower()
+    item_country = item.get("itemLocation", {}).get("country", "").lower()
+    return "china" in seller_country or "china" in item_country
 
 @app.get("/parts")
 def search_parts(query: str = Query(..., min_length=2)):
@@ -68,17 +72,7 @@ def search_parts(query: str = Query(..., min_length=2)):
     try:
         ebay_data = search_ebay(query)
         ebay_items = ebay_data.get("itemSummaries", [])
-        ebay_items = [
-            item for item in ebay_items
-            if not (
-                "china" in item['seller']['country'].lower()
-                and item['itemLocation']['country'].lower() != 'china'
-            )
-            and not (
-                "china" in item['itemLocation']['country'].lower()
-                and item['seller']['country'].lower() != 'china'
-            )
-        ]
+        ebay_items = [item for item in ebay_items if not is_chinese_seller(item)]
     except Exception as e:
         print(f"eBay API error: {e}")
         ebay_items = []

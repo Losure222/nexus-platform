@@ -152,7 +152,7 @@ def create_payment_link(req: PaymentRequest):
                 'quantity': 1,
             }],
             mode='payment',
-            success_url='https://stanloautomation.com/success',
+            success_url='https://stanloautomation.com/thank-you',
             cancel_url='https://stanloautomation.com/cancel',
         )
         return {"url": session.url}

@@ -1,9 +1,12 @@
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-import csv
+from pydantic import BaseModel
 from pathlib import Path
 from typing import List
+import csv
+import os
+import stripe
 from app.ebay.search import search_ebay
 
 app = FastAPI()
@@ -17,7 +20,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-DATA_DIR = Path(__file__).parent.parent / "data/vendors"
+VENDOR_DIR = Path(__file__).parent.parent / "data/vendors"
+SEO_FILE = Path(__file__).parent.parent / "data/seo/master_parts.csv"
 
 brand_aliases = {
     "rexroth": "bosch rexroth",
@@ -29,7 +33,7 @@ def normalize_manufacturer(name):
 
 def load_all_parts() -> List[dict]:
     parts = []
-    for file in DATA_DIR.glob("*.csv"):
+    for file in VENDOR_DIR.glob("*.csv"):
         with open(file, newline='', encoding='utf-8') as f:
             reader = csv.DictReader(f)
             for row in reader:
@@ -51,6 +55,18 @@ def load_all_parts() -> List[dict]:
                 if 'manufacturer' in row:
                     row['manufacturer'] = normalize_manufacturer(row['manufacturer'].strip())
 
+                parts.append(row)
+    return parts
+
+def load_seo_parts() -> List[dict]:
+    parts = []
+    if SEO_FILE.exists():
+        with open(SEO_FILE, newline='', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                row['source'] = 'seo'
+                row['manufacturer'] = normalize_manufacturer(row.get('manufacturer', '').strip())
+                row['part_number'] = row.get('part_number', '').strip()
                 parts.append(row)
     return parts
 
@@ -81,6 +97,17 @@ def search_parts(query: str = Query(..., min_length=2)):
         "csv_results": csv_matches,
         "ebay_results": ebay_items
     }
+
+@app.get("/seo-parts")
+def search_seo_parts(query: str = Query(..., min_length=2)):
+    normalized_query = query.replace("-", "").lower()
+    seo_parts = load_seo_parts()
+
+    matches = [
+        p for p in seo_parts
+        if normalized_query in p.get("part_number", "").replace("-", "").lower()
+    ]
+    return {"results": matches}
 
 @app.get("/manufacturers/{name}")
 def get_by_manufacturer(name: str):
@@ -119,11 +146,6 @@ def get_all_manufacturers():
     found = {p['manufacturer'] for p in all_parts if p['manufacturer'] in allowed}
     return JSONResponse(content=sorted(list(found)))
 
-import stripe
-from fastapi import HTTPException
-from pydantic import BaseModel
-
-import os
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
 
 class PaymentRequest(BaseModel):

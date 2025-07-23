@@ -8,6 +8,7 @@ import csv
 import os
 import stripe
 from app.ebay.search import search_ebay
+from fastapi import Query
 
 app = FastAPI()
 
@@ -110,19 +111,25 @@ def search_seo_parts(query: str = Query(..., min_length=2)):
     return {"results": matches}
 
 @app.get("/master")
-def get_master_parts(
-    query: str = None,
-    manufacturer: str = None,
-    all: bool = False,
-    db: Session = Depends(get_db)
-):
-    if all:
-        return db.query(MasterPart).limit(5000).all()
-    elif query:
-        return db.query(MasterPart).filter(MasterPart.part_number.ilike(f"%{query}%")).limit(100).all()
-    elif manufacturer:
-        return db.query(MasterPart).filter(MasterPart.manufacturer.ilike(f"%{manufacturer}%")).limit(100).all()
-    return []
+def get_seo_parts(query: str = Query(default=None, min_length=2)):
+    try:
+        with open("data/seo/master_parts.csv", "r", encoding="utf-8-sig") as f:
+            reader = csv.DictReader(f)
+            seo_parts = list(reader)
+
+        if query:
+            normalized_query = query.replace("-", "").lower()
+            matches = [
+                part for part in seo_parts
+                if normalized_query in part.get("part_number", "").replace("-", "").lower()
+            ]
+            return {"results": matches}
+
+        # If no query, return all for sitemap generation
+        return {"results": seo_parts}
+
+    except Exception as e:
+        return {"error": str(e)}
 
 
 

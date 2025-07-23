@@ -109,6 +109,18 @@ def search_seo_parts(query: str = Query(..., min_length=2)):
     ]
     return {"results": matches}
 
+@app.get("/master")
+def get_master_part(query: str = Query(..., min_length=2)):
+    normalized_query = query.replace("-", "").lower()
+    seo_parts = load_seo_parts()
+
+    for part in seo_parts:
+        part_number = part.get("part_number", "").replace("-", "").lower()
+        if part_number == normalized_query:
+            return part
+
+    raise HTTPException(status_code=404, detail="Not Found")
+
 @app.get("/manufacturers/{name}")
 def get_by_manufacturer(name: str):
     all_parts = load_all_parts()

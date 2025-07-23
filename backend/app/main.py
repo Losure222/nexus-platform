@@ -110,9 +110,14 @@ def search_seo_parts(query: str = Query(..., min_length=2)):
     return {"results": matches}
 
 @app.get("/master")
-def get_master_part(query: str = Query(..., min_length=2)):
-    normalized_query = query.replace("-", "").lower()
+def get_master_part(query: str = Query(None)):
     seo_parts = load_seo_parts()
+
+    # If no query, return all parts (used by sitemap)
+    if not query:
+        return seo_parts
+
+    normalized_query = query.replace("-", "").lower()
 
     for part in seo_parts:
         part_number = part.get("part_number", "").replace("-", "").lower()

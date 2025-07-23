@@ -8,11 +8,10 @@ import csv
 import os
 import stripe
 from app.ebay.search import search_ebay
-from fastapi import Query
 
 app = FastAPI()
 
-# Enable CORS for frontend access during development
+# CORS settings for frontend access
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -21,18 +20,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# File paths
 VENDOR_DIR = Path(__file__).parent.parent / "data/vendors"
 SEO_FILE = Path(__file__).parent.parent / "data/seo/master_parts.csv"
 
+# Brand name cleanup rules
 brand_aliases = {
     "rexroth": "bosch rexroth",
-    # Add more aliases as needed
+    # Add more brand mappings if needed
 }
 
-def normalize_manufacturer(name):
+def normalize_manufacturer(name: str) -> str:
     return brand_aliases.get(name.lower(), name.lower())
 
-def load_all_parts() -> List[dict]:
+def load_all_vendor_parts() -> List[dict]:
     parts = []
     for file in VENDOR_DIR.glob("*.csv"):
         with open(file, newline='', encoding='utf-8') as f:
@@ -40,36 +41,35 @@ def load_all_parts() -> List[dict]:
             for row in reader:
                 row['vendor_file'] = file.name
                 row['type'] = 'vendor'
+                row['manufacturer'] = normalize_manufacturer(row.get('manufacturer', '').strip())
+                row['part_number'] = row.get('part_number', '').strip()
+                row['quantity'] = row.get('quantity', '').strip()
 
-                raw_location = row.get('location', '').lower()
-                if any(c in raw_location for c in ['de', 'fr', 'nl', 'pl', 'es', 'eu', 'europe']):
+                # Country tagging
+                location = row.get('location', '').lower()
+                if any(c in location for c in ['de', 'fr', 'nl', 'pl', 'es', 'eu', 'europe']):
                     row['country'] = 'europe'
-                elif 'china' in raw_location:
+                elif 'china' in location:
                     row['country'] = 'china'
-                elif any(c in raw_location for c in ['us', 'usa', 'united states']):
+                elif any(c in location for c in ['us', 'usa', 'united states']):
                     row['country'] = 'usa'
                 else:
                     row['country'] = 'n/a'
-
-                row['quantity'] = row.get('quantity', '').strip()
-
-                if 'manufacturer' in row:
-                    row['manufacturer'] = normalize_manufacturer(row['manufacturer'].strip())
 
                 parts.append(row)
     return parts
 
 def load_seo_parts() -> List[dict]:
-    parts = []
-    if SEO_FILE.exists():
-        with open(SEO_FILE, newline='', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                row['source'] = 'seo'
-                row['manufacturer'] = normalize_manufacturer(row.get('manufacturer', '').strip())
-                row['part_number'] = row.get('part_number', '').strip()
-                parts.append(row)
-    return parts
+    if not SEO_FILE.exists():
+        return []
+    with open(SEO_FILE, newline='', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        return [{
+            "manufacturer": normalize_manufacturer(row.get("manufacturer", "").strip()),
+            "part_number": row.get("part_number", "").strip(),
+            "description": row.get("description", ""),
+            "source": "seo"
+        } for row in reader]
 
 def is_chinese_seller(item):
     seller_country = item.get("seller", {}).get("country", "").lower()
@@ -77,85 +77,60 @@ def is_chinese_seller(item):
     return "china" in seller_country or "china" in item_country
 
 @app.get("/parts")
-def search_parts(query: str = Query(..., min_length=2)):
-    normalized_query = query.replace("-", "").lower()
-    all_parts = load_all_parts()
-
-    csv_matches = [
-        p for p in all_parts
-        if normalized_query in p['part_number'].replace("-", "").lower()
-    ]
+def search_vendor_parts(query: str = Query(..., min_length=2)):
+    normalized = query.replace("-", "").lower()
+    vendor_parts = load_all_vendor_parts()
+    matches = [p for p in vendor_parts if normalized in p.get('part_number', '').replace("-", "").lower()]
 
     try:
         ebay_data = search_ebay(query)
-        ebay_items = ebay_data.get("itemSummaries", [])
-        ebay_items = [item for item in ebay_items if not is_chinese_seller(item)]
+        ebay_items = [item for item in ebay_data.get("itemSummaries", []) if not is_chinese_seller(item)]
     except Exception as e:
-        print(f"eBay API error: {e}")
+        print(f"eBay error: {e}")
         ebay_items = []
 
     return {
-        "csv_results": csv_matches,
+        "csv_results": matches,
         "ebay_results": ebay_items
     }
 
 @app.get("/seo-parts")
 def search_seo_parts(query: str = Query(..., min_length=2)):
-    normalized_query = query.replace("-", "").lower()
+    normalized = query.replace("-", "").lower()
     seo_parts = load_seo_parts()
-
-    matches = [
-        p for p in seo_parts
-        if normalized_query in p.get("part_number", "").replace("-", "").lower()
-    ]
+    matches = [p for p in seo_parts if normalized in p['part_number'].replace("-", "").lower()]
     return {"results": matches}
 
 @app.get("/master")
-def get_seo_parts(query: str = Query(default=None, min_length=2)):
-    try:
-        with open("data/seo/master_parts.csv", "r", encoding="utf-8-sig") as f:
-            reader = csv.DictReader(f)
-            seo_parts = list(reader)
-
-        if query:
-            normalized_query = query.replace("-", "").lower()
-            matches = [
-                part for part in seo_parts
-                if normalized_query in part.get("part_number", "").replace("-", "").lower()
-            ]
-            return {"results": matches}
-
-        # If no query, return all for sitemap generation
-        return {"results": seo_parts}
-
-    except Exception as e:
-        return {"error": str(e)}
-
-
+def get_master_parts(query: str = Query(default=None, min_length=2)):
+    seo_parts = load_seo_parts()
+    if query:
+        normalized = query.replace("-", "").lower()
+        matches = [p for p in seo_parts if normalized in p['part_number'].replace("-", "").lower()]
+        return {"results": matches}
+    return {"results": seo_parts}
 
 @app.get("/manufacturers/{name}")
-def get_by_manufacturer(name: str):
-    all_parts = load_all_parts()
+def get_vendor_parts_by_manufacturer(name: str):
+    vendor_parts = load_all_vendor_parts()
     target = normalize_manufacturer(name)
-    matches = [p for p in all_parts if target in p['manufacturer']]
+    matches = [p for p in vendor_parts if target in p['manufacturer']]
     return {"results": matches}
 
 @app.get("/all-parts")
-def get_all_parts():
-    all_parts = load_all_parts()
+def get_all_unique_vendor_parts():
+    all_parts = load_all_vendor_parts()
     seen = set()
-    simplified = []
+    unique = []
     for p in all_parts:
-        part_number = p.get("part_number", "").strip()
-        manufacturer = p.get("manufacturer", "").strip()
-        key = (manufacturer.lower(), part_number.lower())
+        key = (p['manufacturer'].lower(), p['part_number'].lower())
         if key not in seen:
             seen.add(key)
-            simplified.append({"manufacturer": manufacturer, "part_number": part_number})
-    return JSONResponse(content=simplified)
+            unique.append({"manufacturer": p['manufacturer'], "part_number": p['part_number']})
+    return JSONResponse(content=unique)
 
 @app.get("/manufacturers")
-def get_all_manufacturers():
+def list_approved_manufacturers():
     allowed = {
         "abb", "allen bradley", "b&r", "beckhoff", "bosch rexroth",
         "balluff", "baumer", "baumüller", "berger lahr", "fanuc",
@@ -165,11 +140,11 @@ def get_all_manufacturers():
         "phoenix contact", "pilz", "rexroth", "schmersal", "sew eurodrive",
         "sick", "vipa", "yaskawa"
     }
-
-    all_parts = load_all_parts()
-    found = {p['manufacturer'] for p in all_parts if p['manufacturer'] in allowed}
+    vendor_parts = load_all_vendor_parts()
+    found = {p['manufacturer'] for p in vendor_parts if p['manufacturer'] in allowed}
     return JSONResponse(content=sorted(list(found)))
 
+# Stripe payment endpoint
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
 
 class PaymentRequest(BaseModel):
@@ -180,20 +155,18 @@ class PaymentRequest(BaseModel):
 def create_payment_link(req: PaymentRequest):
     try:
         session = stripe.checkout.Session.create(
-            payment_method_types=['card'],
+            payment_method_types=["card"],
             line_items=[{
-                'price_data': {
-                    'currency': 'usd',
-                    'product_data': {
-                        'name': req.name,
-                    },
-                    'unit_amount': int(req.amount * 100),
+                "price_data": {
+                    "currency": "usd",
+                    "product_data": {"name": req.name},
+                    "unit_amount": int(req.amount * 100)
                 },
-                'quantity': 1,
+                "quantity": 1
             }],
-            mode='payment',
-            success_url='https://stanloautomation.com/thank-you',
-            cancel_url='https://stanloautomation.com/cancel',
+            mode="payment",
+            success_url="https://stanloautomation.com/thank-you",
+            cancel_url="https://stanloautomation.com/cancel"
         )
         return {"url": session.url}
     except Exception as e:

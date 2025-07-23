@@ -111,10 +111,13 @@ def search_seo_parts(query: str = Query(..., min_length=2)):
 
 @app.get("/master")
 def get_master_part(
-    query: str = Query(None, min_length=2),
+    query: str = Query(None),
     manufacturer: str = Query(None)
 ):
     seo_parts = load_seo_parts()
+
+    if not query and not manufacturer:
+        return {"results": seo_parts}
 
     if manufacturer:
         manufacturer = normalize_manufacturer(manufacturer)
@@ -132,6 +135,8 @@ def get_master_part(
                 return part
 
     raise HTTPException(status_code=400, detail="Missing or invalid parameters")
+
+
 
 @app.get("/manufacturers/{name}")
 def get_by_manufacturer(name: str):

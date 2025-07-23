@@ -110,21 +110,28 @@ def search_seo_parts(query: str = Query(..., min_length=2)):
     return {"results": matches}
 
 @app.get("/master")
-def get_master_part(query: str = Query(None)):
+def get_master_part(
+    query: str = Query(None, min_length=2),
+    manufacturer: str = Query(None)
+):
     seo_parts = load_seo_parts()
 
-    # If no query, return all parts (used by sitemap)
-    if not query:
-        return seo_parts
+    if manufacturer:
+        manufacturer = normalize_manufacturer(manufacturer)
+        matches = [
+            part for part in seo_parts
+            if part.get('manufacturer') == manufacturer
+        ]
+        return {"results": matches}
 
-    normalized_query = query.replace("-", "").lower()
+    if query:
+        normalized_query = query.replace("-", "").lower()
+        for part in seo_parts:
+            part_number = part.get("part_number", "").replace("-", "").lower()
+            if part_number == normalized_query:
+                return part
 
-    for part in seo_parts:
-        part_number = part.get("part_number", "").replace("-", "").lower()
-        if part_number == normalized_query:
-            return part
-
-    raise HTTPException(status_code=404, detail="Not Found")
+    raise HTTPException(status_code=400, detail="Missing or invalid parameters")
 
 @app.get("/manufacturers/{name}")
 def get_by_manufacturer(name: str):

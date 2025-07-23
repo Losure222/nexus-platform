@@ -110,31 +110,19 @@ def search_seo_parts(query: str = Query(..., min_length=2)):
     return {"results": matches}
 
 @app.get("/master")
-def get_master_part(
-    query: str = Query(None),
-    manufacturer: str = Query(None)
+def get_master_parts(
+    query: str = None,
+    manufacturer: str = None,
+    all: bool = False,
+    db: Session = Depends(get_db)
 ):
-    seo_parts = load_seo_parts()
-
-    if not query and not manufacturer:
-        return {"results": seo_parts}
-
-    if manufacturer:
-        manufacturer = normalize_manufacturer(manufacturer)
-        matches = [
-            part for part in seo_parts
-            if part.get('manufacturer') == manufacturer
-        ]
-        return {"results": matches}
-
-    if query:
-        normalized_query = query.replace("-", "").lower()
-        for part in seo_parts:
-            part_number = part.get("part_number", "").replace("-", "").lower()
-            if part_number == normalized_query:
-                return part
-
-    raise HTTPException(status_code=400, detail="Missing or invalid parameters")
+    if all:
+        return db.query(MasterPart).limit(5000).all()
+    elif query:
+        return db.query(MasterPart).filter(MasterPart.part_number.ilike(f"%{query}%")).limit(100).all()
+    elif manufacturer:
+        return db.query(MasterPart).filter(MasterPart.manufacturer.ilike(f"%{manufacturer}%")).limit(100).all()
+    return []
 
 
 

@@ -102,13 +102,19 @@ def search_seo_parts(query: str = Query(..., min_length=2)):
     return {"results": matches}
 
 @app.get("/master")
-def get_master_parts(query: str = Query(default=None, min_length=2)):
-    seo_parts = load_seo_parts()
-    if query:
-        normalized = query.replace("-", "").lower()
-        matches = [p for p in seo_parts if normalized in p['part_number'].replace("-", "").lower()]
-        return {"results": matches}
-    return {"results": seo_parts}
+def get_master_parts(manufacturer: str = None):
+    results = []
+
+    with open("data/seo/master_parts.csv", newline='', encoding='utf-8') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            if manufacturer:
+                # Compare lowercase and strip whitespace for safety
+                if row["manufacturer"].strip().lower() != manufacturer.strip().lower():
+                    continue
+            results.append(row)
+
+    return {"results": results}
 
 @app.get("/manufacturers/{name}")
 def get_vendor_parts_by_manufacturer(name: str):

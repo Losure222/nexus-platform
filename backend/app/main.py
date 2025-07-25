@@ -105,13 +105,15 @@ def search_seo_parts(query: str = Query(..., min_length=2)):
 def get_master_parts(manufacturer: str = None):
     results = []
 
+    if manufacturer:
+        manufacturer = normalize_manufacturer(manufacturer.strip())
+
     with open("data/seo/master_parts.csv", newline='', encoding='utf-8') as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
-            if manufacturer:
-                # Compare lowercase and strip whitespace for safety
-                if row["manufacturer"].strip().lower() != manufacturer.strip().lower():
-                    continue
+            row_manufacturer = normalize_manufacturer(row.get("manufacturer", "").strip())
+            if manufacturer and row_manufacturer != manufacturer:
+                continue
             results.append(row)
 
     return {"results": results}

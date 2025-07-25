@@ -102,19 +102,14 @@ def search_seo_parts(query: str = Query(..., min_length=2)):
     return {"results": matches}
 
 @app.get("/master")
-def get_master_parts(manufacturer: Optional[str] = None):
-    master_df = pd.read_csv("master_parts.csv")
+def get_master_parts(manufacturer: str = None):
+    vendor_parts = load_all_vendor_parts()
 
     if manufacturer:
-        # Normalize and filter properly
-        filtered_df = master_df[
-            master_df['manufacturer'].str.lower().str.strip() == manufacturer.lower().strip()
-        ]
-    else:
-        filtered_df = master_df
+        manufacturer = normalize_manufacturer(manufacturer.strip())
+        vendor_parts = [p for p in vendor_parts if normalize_manufacturer(p['manufacturer']) == manufacturer]
 
-    results = filtered_df.to_dict(orient="records")
-    return {"results": results}
+    return {"results": vendor_parts}
 
 @app.get("/manufacturers/{name}")
 def get_vendor_parts_by_manufacturer(name: str):

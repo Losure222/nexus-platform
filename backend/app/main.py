@@ -103,13 +103,24 @@ def search_seo_parts(query: str = Query(..., min_length=2)):
 
 @app.get("/master")
 def get_master_parts(manufacturer: str = None):
-    vendor_parts = load_all_vendor_parts()
+    if not SEO_FILE.exists():
+        return {"results": []}
 
-    if manufacturer:
-        manufacturer = normalize_manufacturer(manufacturer.strip())
-        vendor_parts = [p for p in vendor_parts if normalize_manufacturer(p['manufacturer']) == manufacturer]
-
-    return {"results": vendor_parts}
+    with open(SEO_FILE, newline='', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        results = []
+        for row in reader:
+            row_manufacturer = normalize_manufacturer(row.get("manufacturer", "").strip())
+            if manufacturer:
+                if row_manufacturer != normalize_manufacturer(manufacturer):
+                    continue
+            results.append({
+                "manufacturer": row_manufacturer,
+                "part_number": row.get("part_number", "").strip(),
+                "description": row.get("description", "").strip(),
+                "source": "seo"
+            })
+    return {"results": results}
 
 @app.get("/manufacturers/{name}")
 def get_vendor_parts_by_manufacturer(name: str):

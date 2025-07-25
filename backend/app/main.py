@@ -106,20 +106,25 @@ def get_master_parts(manufacturer: str = None):
     if not SEO_FILE.exists():
         return {"results": []}
 
+    results = []
     with open(SEO_FILE, newline='', encoding='utf-8') as f:
         reader = csv.DictReader(f)
-        results = []
         for row in reader:
             row_manufacturer = normalize_manufacturer(row.get("manufacturer", "").strip())
+            part_number = row.get("part_number", "").strip()
+            description = row.get("description", "").strip()
+
             if manufacturer:
                 if row_manufacturer != normalize_manufacturer(manufacturer):
-                    continue
+                    continue  # Skip non-matching brands
+
             results.append({
                 "manufacturer": row_manufacturer,
-                "part_number": row.get("part_number", "").strip(),
-                "description": row.get("description", "").strip(),
+                "part_number": part_number,
+                "description": description,
                 "source": "seo"
             })
+
     return {"results": results}
 
 @app.get("/manufacturers/{name}")

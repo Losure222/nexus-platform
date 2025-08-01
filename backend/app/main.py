@@ -102,11 +102,13 @@ def search_seo_parts(query: str = Query(..., min_length=2)):
     return {"results": matches}
 
 @app.get("/master")
-def get_master_parts(manufacturer: str = None):
+def get_master_parts(query: str = None, manufacturer: str = None):
     if not SEO_FILE.exists():
         return {"results": []}
 
+    normalized_query = query.replace("-", "").lower() if query else None
     results = []
+
     with open(SEO_FILE, newline='', encoding='utf-8') as f:
         reader = csv.DictReader(f)
         for row in reader:
@@ -114,9 +116,13 @@ def get_master_parts(manufacturer: str = None):
             part_number = row.get("part_number", "").strip()
             description = row.get("description", "").strip()
 
-            if manufacturer:
-                if row_manufacturer != normalize_manufacturer(manufacturer):
-                    continue  # Skip non-matching brands
+            # Manufacturer filter
+            if manufacturer and row_manufacturer != normalize_manufacturer(manufacturer):
+                continue
+
+            # Part number filter
+            if normalized_query and normalized_query not in part_number.replace("-", "").lower():
+                continue
 
             results.append({
                 "manufacturer": row_manufacturer,
